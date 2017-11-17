@@ -1,20 +1,36 @@
-﻿<# 
+﻿Param(
+    [Parameter(Mandatory=$True)]
+    [switch]$servers,
+    [switch]$workstations,
+    [switch]$both
+)
+# TODO: Exit script if more than one switch is selected
+
+<# --------------------------------------------------------------------------------------------------------------
 'Kaseya Agent Deployment GPO' creation
 Version: 0.0.1
 Made by: Witt Allen
 Objective: Create a GPO that installs a Kaseya agent based on filters on a WMI query (servers, workstations, both)
 
 DEPENDANCIES & ASSUMPTIONS:
-- This script is being run on a Domain Controller
+- Script will be ran as Administrator
+- Script will be ran on a Domain Controller
 - Server's OS can use WMI filtering
 - Imported modules are supported on Server's OS
 
+# --------------------------------------------------------------------------------------------------------------
 #>
+import-module GroupPolicy
+import-module SDM-GPMC    #To reduce dependancy on a third party, try to not use this module if possible 
+
 $gpoName = "RMM Agent Install"
 $companyName = "Data Blue"
 $regkeyPath = "HKLM:\System\CurrentControlSet\Services\NTDS\Parameters"
+$execPolicy = Get-ExecutionPolicy
 
-# Check execution policy, set to remotesigned and revert to prior setting at end of script
+# Check execution policy, set to RemoteSigned, and revert to prior setting at end of script
+Set-ExecutionPolicy RemoteSigned -Force
+
 # Check if a Kaseya Agent Deployment GPO already exists
 # Delete it if yes
 # This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
@@ -22,9 +38,9 @@ $regkeyPath = "HKLM:\System\CurrentControlSet\Services\NTDS\Parameters"
 
 # Get parameter passed to script to know what to create WMI filter against (srv, wks, both)
 # https://stackoverflow.com/questions/5592531/how-to-pass-an-argument-to-a-powershell-script
+# https://technet.microsoft.com/en-us/library/jj554301.aspx
 
-import-module GroupPolicy #check for cmdlet existing then import module if not
-import-module SDM-GPMC    #check for cmdlet existing then import module if not, try to not use this module if possible 
+
 
 # ------------------------------------------------------ WMI Filter Function ------------------------------------------------
 
@@ -96,3 +112,6 @@ if (WMIfilters not exist) {
 new-gpo -Name $gpoName
 
 Set-GPPrefRegistryValue -name $gpoName
+
+# Reverting execution policy to whatever it was
+Set-ExecutionPolicy $execPolicy -Force
