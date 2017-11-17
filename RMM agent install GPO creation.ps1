@@ -24,16 +24,15 @@ import-module GroupPolicy
 import-module SDM-GPMC    #To reduce dependancy on a third party, try to not use this module if possible 
 
 $gpoName = "RMM Agent Install"
+$gpoComment =
+$gpoDomain = (Get-WmiObject win32_computersystem).Domain
+$gpoServer = (Get-WmiObject win32_computersystem).DNSHostName+"."+(Get-WmiObject win32_computersystem).Domain #FQDN
 $companyName = "Data Blue"
 $regkeyPath = "HKLM:\System\CurrentControlSet\Services\NTDS\Parameters"
 $execPolicy = Get-ExecutionPolicy
 
 # Check execution policy, set to RemoteSigned, and revert to prior setting at end of script
 Set-ExecutionPolicy RemoteSigned -Force
-
-# Check if a Kaseya Agent Deployment GPO already exists
-# Delete it if yes
-# This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
 
 
 # Get parameter passed to script to know what to create WMI filter against (srv, wks, both)
@@ -108,8 +107,11 @@ if (WMIfilters not exist) {
     Create-WMIFilters 
 }
 
+# Check if a Kaseya Agent Deployment GPO already exists
+# Delete it if yes
+# This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
 
-new-gpo -Name $gpoName
+New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
 
 Set-GPPrefRegistryValue -name $gpoName
 
