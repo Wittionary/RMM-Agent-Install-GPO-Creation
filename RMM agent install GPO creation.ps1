@@ -12,6 +12,7 @@ DEPENDANCIES & ASSUMPTIONS:
 #>
 $gpoName = "RMM Agent Install"
 $companyName = "Data Blue"
+$regkeyPath = "HKLM:\System\CurrentControlSet\Services\NTDS\Parameters"
 
 # Check execution policy, set to remotesigned and revert to prior setting at end of script
 # Check if a Kaseya Agent Deployment GPO already exists
@@ -25,12 +26,9 @@ $companyName = "Data Blue"
 import-module GroupPolicy #check for cmdlet existing then import module if not
 import-module SDM-GPMC    #check for cmdlet existing then import module if not, try to not use this module if possible 
 
-new-gpo -Name $gpoName
+# ------------------------------------------------------ WMI Filter Function ------------------------------------------------
 
-Set-GPPrefRegistryValue -name $gpoName
-
-<# Based on function from https://gallery.technet.microsoft.com/scriptcenter/f1491111-9f5d-4c83-b436-537eca9e8d94
-
+# Based on function from https://gallery.technet.microsoft.com/scriptcenter/f1491111-9f5d-4c83-b436-537eca9e8d94
 Function Create-WMIFilters 
 { 
     # Importing or adding a WMI Filter object into AD is a system only operation.  
@@ -76,6 +74,25 @@ Function Create-WMIFilters
     } 
  
 } 
- 
-Create-WMIFilters 
-#>
+
+# Check for WMI Filters existing. If they don't exist, create them.
+if (WMIfilters not exist) {
+    $key = get-item -literalpath $regkeyPath
+
+    #If regkey that let's us create WMI filters doesn't exist, create it and set value to 1
+    if ($Key.GetValue("Allow System Only Change", $null) -eq $null) { 
+        new-itemproperty $regkeyPath -name "Allow System Only Change" -value 1 -propertyType dword
+
+    #If regkey that let's us create WMI filters exists with a non-one value, set value to 1
+    } elseIf ($Key.GetValue("Allow System Only Change", $null) -ne 1) { 
+        set-itemproperty -Path $regkeyPath -Name "Allow System Only Change" -value 1
+
+    }
+
+    Create-WMIFilters 
+}
+
+
+new-gpo -Name $gpoName
+
+Set-GPPrefRegistryValue -name $gpoName
