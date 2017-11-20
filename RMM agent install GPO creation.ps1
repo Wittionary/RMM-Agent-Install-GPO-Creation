@@ -1,8 +1,10 @@
 ﻿Param(
-    [Parameter(Mandatory=$True)]
-    [switch]$servers,
+    #[Parameter(Mandatory=$True,Position=1)]
+    [string]$organizationID, # The organization's ID that you've defined in Kaseya (System > Orgs/Groups/Depts/Staff > Manage
+
+    [switch]$servers, # Pick only ONE of these switches.
     [switch]$workstations,
-    [switch]$both
+    [switch]$both 
 )
 # TODO: Exit script if more than one switch is selected
 
@@ -17,14 +19,19 @@ DEPENDANCIES & ASSUMPTIONS:
 - Script will be ran on a Domain Controller
 - Server's OS can use WMI filtering
 - Imported modules are supported on Server's OS
+- Server has .NET installed
 
+GENERAL TODO:
+- Create event log entries when stuff happens
 # --------------------------------------------------------------------------------------------------------------
 #>
 import-module GroupPolicy
 import-module SDM-GPMC    #To reduce dependancy on a third party, try to not use this module if possible 
 
+$vsaURL = "https://vsa.data-blue.com"
+$agentEXE = "KcsSetup.exe"
 $gpoName = "RMM Agent Install"
-$gpoComment =
+$gpoComment = "Used by Data Blue to deploy RMM agent."
 $gpoDomain = (Get-WmiObject win32_computersystem).Domain
 $gpoServer = (Get-WmiObject win32_computersystem).DNSHostName+"."+(Get-WmiObject win32_computersystem).Domain #FQDN
 $companyName = "Data Blue"
@@ -107,7 +114,30 @@ if (WMIfilters not exist) {
     Create-WMIFilters 
 }
 
-# Check if a Kaseya Agent Deployment GPO already exists
+# ------------------------------------------------------ Create script that GPO will run ------------------------------------------------
+<# TODO: Dynamically install delegated agent for specific org
+# Check if agent installer exists in NETLOGON (KcsSetup.exe)
+if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE){
+    # If installer is more than 1 month old, delete it and download new one
+} else { # Agent installer doesn't exist
+    # Download agent installer
+}
+
+https://blog.jourdant.me/post/3-ways-to-download-files-with-powershell
+# Download appropriate agent installer for the org (datablue.root)
+# https://vsa.data-blue.com:443/deploy/#/<org>.root
+#>
+
+# Check if agent installer exists in NETLOGON (KcsSetup.exe)
+if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE){
+    # If installer is more than 1 month old, delete it and download new one
+} else {
+    # Throw error
+    # Write to event log
+}
+
+# ------------------------------------------------------ Create GPO ------------------------------------------------
+# Check if a RMM Agent Install GPO already exists
 # Delete it if yes
 # This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
 
@@ -115,5 +145,7 @@ New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServe
 
 Set-GPPrefRegistryValue -name $gpoName
 
+
+# ------------------------------------------------------ End of Script ------------------------------------------------
 # Reverting execution policy to whatever it was
 Set-ExecutionPolicy $execPolicy -Force
