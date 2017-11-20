@@ -28,6 +28,8 @@ GENERAL TODO:
 import-module GroupPolicy
 import-module SDM-GPMC    #To reduce dependancy on a third party, try to not use this module if possible 
 
+
+$agentInstallScript = "RMM Agent Install.ps1"
 $vsaURL = "https://vsa.data-blue.com"
 $agentEXE = "KcsSetup.exe"
 $gpoName = "RMM Agent Install"
@@ -128,9 +130,10 @@ https://blog.jourdant.me/post/3-ways-to-download-files-with-powershell
 # https://vsa.data-blue.com:443/deploy/#/<org>.root
 #>
 
-# Check if agent installer exists in NETLOGON (KcsSetup.exe)
-if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE){
-    # If installer is more than 1 month old, delete it and download new one
+# Check if agent installer exists in NETLOGON (KcsSetup.exe) and there's no install script already
+if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE -and !(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)){
+    # Creates an agent install powershell script in NETLOGON
+    New-Item \\$gpoDomain\NETLOGON\$agentInstallScript -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE"
 } else {
     # Throw error
     # Write to event log
@@ -142,6 +145,7 @@ if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE){
 # This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
 
 New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
+Set-GPLink #todo
 
 Set-GPPrefRegistryValue -name $gpoName
 
