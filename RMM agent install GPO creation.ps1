@@ -20,6 +20,7 @@ DEPENDANCIES & ASSUMPTIONS:
 - Server's OS can use WMI filtering
 - Imported modules are supported on Server's OS
 - Server has .NET installed
+- Assumes there are only two DC objects (ex. DC=CONTOSO,DC=COM). See Set-GPRegistryValue section
 
 GENERAL TODO:
 - Create event log entries when stuff happens
@@ -39,6 +40,7 @@ $gpoServer = (Get-WmiObject win32_computersystem).DNSHostName+"."+(Get-WmiObject
 $companyName = "Data Blue"
 $regkeyPath = "HKLM:\System\CurrentControlSet\Services\NTDS\Parameters"
 $execPolicy = Get-ExecutionPolicy
+$DC = $gpoDomain -split "\." # Subdivide domain into DC objects
 
 # Check execution policy, set to RemoteSigned, and revert to prior setting at end of script
 Set-ExecutionPolicy RemoteSigned -Force
@@ -144,10 +146,23 @@ if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE -and !(Test-Path \\$gpoDomain\NETL
 # Delete it if yes
 # This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
 
-New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
+$gpo = New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
 Set-GPLink #todo
 
-Set-GPPrefRegistryValue -name $gpoName
+# TODO: Allow for more than two DC objects
+# Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
+$objDC = "DC="
+$objDC += $DC[0]
+$objDC += ",DC="
+$objDC += $DC[1]
+
+$regGpoId = cn={$gpo.id},cn=policies,cn=system,DC=$DC[0],DC=$DC[1]
+Set-GPRegistryValue -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
+    -Value $gpoName, \\$gpoDomain\SysVol\$gpoDomain\Policies\{$gpo.id}\Machine, $regGpoId, {$gpo.id}, $objDC| $gpo
+
+
+# TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
 
 
 # ------------------------------------------------------ End of Script ------------------------------------------------
