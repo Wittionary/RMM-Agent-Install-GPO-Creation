@@ -173,15 +173,32 @@ $fileSysPath += "\Policies\"
 $fileSysPath += $gpoID
 $fileSysPath += "\Machine"
 
-$key = get-item -literalpath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
+$regkeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
+$regkeyPath9 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9"
+$regkeyPath99 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9"
+$key = get-item -literalpath $regkeyPath
 #If regkey that let's us prioritize Startup scripts doesn't exist, create it
 if ($Key.GetValue("9", $null) -eq $null) { 
-    new-item "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup" -name 9
+    new-item $regkeyPath -name 9 #...\Startup\9
+    new-itemproperty $regkeyPath9 -name "DisplayName" -value $gpoName -propertyType string
+    new-itemproperty $regkeyPath9 -name "FileSysPath" -value $fileSysPath -propertyType string
+    new-itemproperty $regkeyPath9 -name "GPO-ID" -value $regGpoId -propertyType string
+    new-itemproperty $regkeyPath9 -name "GPOName" -value $gpoID -propertyType string
+    new-itemproperty $regkeyPath9 -name "PSScriptOrder" -value 1 -propertyType DWORD
+    new-itemproperty $regkeyPath9 -name "SOM-ID" -value $objDC -propertyType string
+
+    new-item $regkeyPath9 -name 9 #...\Startup\9\9
+    new-itemproperty $regkeyPath99 -name "ErrorCode" -value 0 -propertyType DWORD
+    new-itemproperty $regkeyPath99 -name "ExecTime" -value 0 -propertyType QWORD
+    new-itemproperty $regkeyPath99 -name "Parameters" -value "0" -propertyType string #Not 100% sure what this guy is doing
+    New-ItemProperty $regkeyPath99 -Name "IsPowershell" -Value 1 -PropertyType DWORD
+    new-itemproperty $regkeyPath99 -name "Script" -value \\$gpoDomain\NETLOGON\$agentInstallScript -propertyType string
 
     # TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
-    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+    <#Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
         -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
-        -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC
+        -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -whatif
+    #>
 }
 
 
