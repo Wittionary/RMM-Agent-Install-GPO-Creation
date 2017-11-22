@@ -156,13 +156,37 @@ $objDC += $DC[0]
 $objDC += ",DC="
 $objDC += $DC[1]
 
-$regGpoId = cn={$gpo.id},cn=policies,cn=system,DC=$DC[0],DC=$DC[1]
-Set-GPRegistryValue -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
-    -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
-    -Value $gpoName, \\$gpoDomain\SysVol\$gpoDomain\Policies\{$gpo.id}\Machine, $regGpoId, {$gpo.id}, $objDC| $gpo
+$gpoID = "{"
+$gpoID += $gpo.id
+$gpoID += "}"
+
+$regGpoId = "cn="
+$regGpoId += $gpoID
+$regGpoId += ",cn=policies,cn=system,"
+$regGpoId += $objDC
+
+$fileSysPath = "\\"
+$fileSysPath += $gpoDomain
+$fileSysPath += "\SysVol\"
+$fileSysPath += $gpoDomain
+$fileSysPath += "\Policies\"
+$fileSysPath += $gpoID
+$fileSysPath += "\Machine"
+
+$key = get-item -literalpath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
+#If regkey that let's us prioritize Startup scripts doesn't exist, create it
+if ($Key.GetValue("9", $null) -eq $null) { 
+    new-item "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup" -name 9
+
+    # TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
+    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+        -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
+        -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC
+}
 
 
-# TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
+
+
 
 
 # ------------------------------------------------------ End of Script ------------------------------------------------
