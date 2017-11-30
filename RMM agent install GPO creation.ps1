@@ -41,6 +41,10 @@ $companyName = "Data Blue"
 $regkeyPath = "HKLM:\System\CurrentControlSet\Services\NTDS\Parameters"
 $execPolicy = Get-ExecutionPolicy
 $DC = $gpoDomain -split "\." # Subdivide domain into DC objects
+$scriptFilePath = "\\"
+$scriptFilePath += $gpoDomain
+$scriptFilePath += "\NETLOGON\"
+$scriptFilePath += $agentInstallScript
 
 # Check execution policy, set to RemoteSigned, and revert to prior setting at end of script
 Set-ExecutionPolicy RemoteSigned -Force
@@ -179,6 +183,9 @@ $regkeyPath99 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\St
 $key = get-item -literalpath $regkeyPath
 #If regkey that let's us prioritize Startup scripts doesn't exist, create it
 if ($Key.GetValue("9", $null) -eq $null) { 
+    <#
+    # This would set the startup script locally. 
+    # Instead, we want to tell the GPO which regkeys need to have what values.
     new-item $regkeyPath -name 9 #...\Startup\9
     new-itemproperty $regkeyPath9 -name "DisplayName" -value $gpoName -propertyType string
     new-itemproperty $regkeyPath9 -name "FileSysPath" -value $fileSysPath -propertyType string
@@ -192,13 +199,36 @@ if ($Key.GetValue("9", $null) -eq $null) {
     new-itemproperty $regkeyPath99 -name "ExecTime" -value 0 -propertyType QWORD
     new-itemproperty $regkeyPath99 -name "Parameters" -value "0" -propertyType string #Not 100% sure what this guy is doing
     New-ItemProperty $regkeyPath99 -Name "IsPowershell" -Value 1 -PropertyType DWORD
-    new-itemproperty $regkeyPath99 -name "Script" -value \\$gpoDomain\NETLOGON\$agentInstallScript -propertyType string
+    new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyType string
 
-    # TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
-    <#Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
-        -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
-        -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -whatif
     #>
+    # TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
+    
+    # ---------------------- STRING regkeys for 9 path
+    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+        -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
+        -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC
+
+    # ---------------------- DWORD regkey for 9 path
+    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+        -ValueName "PSScriptOrder" -Type dword `
+        -Value 9
+
+    # ---------------------- STRING regkeys for 9\9 path
+    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+        -ValueName "Parameters", "Script" -Type string `
+        -Value "0", $scriptFilePath
+
+    # ---------------------- DWORD regkey for 9\9 path
+    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+        -ValueName "ErrorCode" -Type dword `
+        -Value 0
+
+    # ---------------------- QWORD regkey for 9\9 path
+    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+        -ValueName "ExecTime" -Type qword `
+        -Value 0
+    
 }
 
 
