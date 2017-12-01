@@ -105,7 +105,7 @@ Function Create-WMIFilters
  
 } 
 
-# Check for WMI Filters existing. If they don't exist, create them.
+# Check for WMI Filters existing. If they don't exist, create them. ------------------------------------------------
 if (WMIfilters not exist) {
     $key = get-item -literalpath $regkeyPath
 
@@ -137,7 +137,8 @@ https://blog.jourdant.me/post/3-ways-to-download-files-with-powershell
 #>
 
 # Check if agent installer exists in NETLOGON (KcsSetup.exe) and there's no install script already
-if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE -and !(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)){
+if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE -and !(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
+    # TODO: Create it somewhere that won't have permission issues and then move it to NETLOGON 
     # Creates an agent install powershell script in NETLOGON
     New-Item \\$gpoDomain\NETLOGON\$agentInstallScript -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE"
 } else {
@@ -146,12 +147,14 @@ if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE -and !(Test-Path \\$gpoDomain\NETL
 }
 
 # ------------------------------------------------------ Create GPO ------------------------------------------------
-# Check if a RMM Agent Install GPO already exists
-# Delete it if yes
-# This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
 
-$gpo = New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
-Set-GPLink #todo
+# This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
+if (Get-GPO -name $gpoName) { # Check if a RMM Agent Install GPO already exists
+    Remove-GPO -name $gpoName -Domain $gpoDomain -Server $gpoServer # Delete it if yes
+}
+
+New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
+$gpo = Get-GPO -Name $gpoName 
 
 # TODO: Allow for more than two DC objects
 # Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
@@ -177,59 +180,60 @@ $fileSysPath += "\Policies\"
 $fileSysPath += $gpoID
 $fileSysPath += "\Machine"
 
+New-GPLink -guid $gpo.ID -Target $objDC
+
 $regkeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
-$regkeyPath9 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9"
-$regkeyPath99 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9"
+# $regkeyPath9 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9"
+# $regkeyPath99 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9"
 $key = get-item -literalpath $regkeyPath
 #If regkey that let's us prioritize Startup scripts doesn't exist, create it
-if ($Key.GetValue("9", $null) -eq $null) { 
-    <#
-    # This would set the startup script locally. 
-    # Instead, we want to tell the GPO which regkeys need to have what values.
-    new-item $regkeyPath -name 9 #...\Startup\9
-    new-itemproperty $regkeyPath9 -name "DisplayName" -value $gpoName -propertyType string
-    new-itemproperty $regkeyPath9 -name "FileSysPath" -value $fileSysPath -propertyType string
-    new-itemproperty $regkeyPath9 -name "GPO-ID" -value $regGpoId -propertyType string
-    new-itemproperty $regkeyPath9 -name "GPOName" -value $gpoID -propertyType string
-    new-itemproperty $regkeyPath9 -name "PSScriptOrder" -value 1 -propertyType DWORD
-    new-itemproperty $regkeyPath9 -name "SOM-ID" -value $objDC -propertyType string
 
-    new-item $regkeyPath9 -name 9 #...\Startup\9\9
-    new-itemproperty $regkeyPath99 -name "ErrorCode" -value 0 -propertyType DWORD
-    new-itemproperty $regkeyPath99 -name "ExecTime" -value 0 -propertyType QWORD
-    new-itemproperty $regkeyPath99 -name "Parameters" -value "0" -propertyType string #Not 100% sure what this guy is doing
-    New-ItemProperty $regkeyPath99 -Name "IsPowershell" -Value 1 -PropertyType DWORD
-    new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyType string
+<#
+# This would set the startup script locally. 
+# Instead, we want to tell the GPO which regkeys need to have what values.
+new-item $regkeyPath -name 9 #...\Startup\9
+new-itemproperty $regkeyPath9 -name "DisplayName" -value $gpoName -propertyType string
+new-itemproperty $regkeyPath9 -name "FileSysPath" -value $fileSysPath -propertyType string
+new-itemproperty $regkeyPath9 -name "GPO-ID" -value $regGpoId -propertyType string
+new-itemproperty $regkeyPath9 -name "GPOName" -value $gpoID -propertyType string
+new-itemproperty $regkeyPath9 -name "PSScriptOrder" -value 1 -propertyType DWORD
+new-itemproperty $regkeyPath9 -name "SOM-ID" -value $objDC -propertyType string
 
-    #>
-    # TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
+new-item $regkeyPath9 -name 9 #...\Startup\9\9
+new-itemproperty $regkeyPath99 -name "ErrorCode" -value 0 -propertyType DWORD
+new-itemproperty $regkeyPath99 -name "ExecTime" -value 0 -propertyType QWORD
+new-itemproperty $regkeyPath99 -name "Parameters" -value "0" -propertyType string #Not 100% sure what this guy is doing
+New-ItemProperty $regkeyPath99 -Name "IsPowershell" -Value 1 -PropertyType DWORD
+new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyType string
+#>
+# TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
+
+# ---------------------- STRING regkeys for 9 path
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
+    -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -Additive
+
+# ---------------------- DWORD regkey for 9 path
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "PSScriptOrder" -Type dword `
+    -Value 9 -Additive
+
+# ---------------------- STRING regkeys for 9\9 path
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "Parameters", "Script" -Type string `
+    -Value "0", $scriptFilePath -Additive
+
+# ---------------------- DWORD regkey for 9\9 path
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "ErrorCode" -Type dword `
+    -Value 0 -Additive
+
+# ---------------------- QWORD regkey for 9\9 path
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "ExecTime" -Type qword `
+    -Value 0 -Additive
     
-    # ---------------------- STRING regkeys for 9 path
-    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
-        -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
-        -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC
 
-    # ---------------------- DWORD regkey for 9 path
-    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
-        -ValueName "PSScriptOrder" -Type dword `
-        -Value 9
-
-    # ---------------------- STRING regkeys for 9\9 path
-    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
-        -ValueName "Parameters", "Script" -Type string `
-        -Value "0", $scriptFilePath
-
-    # ---------------------- DWORD regkey for 9\9 path
-    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
-        -ValueName "ErrorCode" -Type dword `
-        -Value 0
-
-    # ---------------------- QWORD regkey for 9\9 path
-    Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
-        -ValueName "ExecTime" -Type qword `
-        -Value 0
-    
-}
 
 
 
