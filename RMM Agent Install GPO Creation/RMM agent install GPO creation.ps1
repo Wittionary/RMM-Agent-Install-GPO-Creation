@@ -1,6 +1,6 @@
 ﻿Param(
     #[Parameter(Mandatory=$True,Position=1)]
-    [string]$organizationID, # The organization's ID that you've defined in Kaseya (System > Orgs/Groups/Depts/Staff > Manage
+    [string]$organizationID, # The organization's ID that you've defined in Kaseya (System > Orgs/Groups/Depts/Staff > Manage)
 
     [switch]$servers, # Pick only ONE of these switches.
     [switch]$workstations,
@@ -154,6 +154,7 @@ if (Get-GPO -name $gpoName) { # Check if a RMM Agent Install GPO already exists
 }
 
 New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
+# TODO: Add sleep/wait time so GUID can be grabbed
 $gpo = Get-GPO -Name $gpoName 
 
 # TODO: Allow for more than two DC objects
