@@ -22,6 +22,12 @@ DEPENDANCIES & ASSUMPTIONS:
 - Server has .NET installed
 - Assumes there are only two DC objects (ex. DC=CONTOSO,DC=COM). See Set-GPRegistryValue section
 
+WMI Filters is only available if at least one domain controller in the domain is running Microsoft Windows Server™ 2003.
+ The same is true for WMI Filtering on the Scope tab for Group Policy Objects .
+ WMI Filters are not evaluated on Microsoft Windows® 2000.
+  A GPO targeted to a Windows 2000 machine will always apply the GPO regardless of the query associated with the WMI Filter (the filter is ignored)
+  Source: https://technet.microsoft.com/en-us/library/cc770562(v=ws.11).aspx  
+
 GENERAL TODO:
 - Create event log entries when stuff happens
 # --------------------------------------------------------------------------------------------------------------
@@ -154,11 +160,10 @@ if (Get-GPO -name $gpoName) { # Check if a RMM Agent Install GPO already exists
 }
 
 New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
-# TODO: Add sleep/wait time so GUID can be grabbed
+& repadmin /syncall #Sync the new GPO across all DCs
 $gpo = Get-GPO -Name $gpoName 
 
-# TODO: Allow for more than two DC objects
-# Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
+# TODO: Allow for more than two DC objects (Ex: DC=blog,DC=contoso,DC=com)
 $objDC = "DC="
 $objDC += $DC[0]
 $objDC += ",DC="
@@ -207,8 +212,9 @@ new-itemproperty $regkeyPath99 -name "Parameters" -value "0" -propertyType strin
 New-ItemProperty $regkeyPath99 -Name "IsPowershell" -Value 1 -PropertyType DWORD
 new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyType string
 #>
-# TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
 
+# TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
+# Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
 # ---------------------- STRING regkeys for 9 path
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
