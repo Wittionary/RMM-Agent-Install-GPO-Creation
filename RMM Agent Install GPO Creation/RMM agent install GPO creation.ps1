@@ -64,8 +64,12 @@ Set-ExecutionPolicy RemoteSigned -Force
 
  
 
-# ------------------------ Check for WMI Filters existing. If they don't exist, create them. ------------------------------------------------
-# TODO: Test section
+# ---------------------------------------------------- WMI Filters ------------------------------------------------------
+# TODO: Low-priority - This would fail in the single case where there already exists two WMI filters with
+#                      the name Servers and Workstations and their WMI was inaccurate. It would be nice to
+#                      further verify by testing against the WMI queries themselves - or at least description
+#                      to see if we put in place.
+
 if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations')) {
     $key = get-item -literalpath $regkeyPath
 
@@ -79,8 +83,15 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
 
     }
 
-    # Create-WMIFilters 
-
+    # Delete either of them if they exist
+    if (Get-GPWmiFilter -Name 'Servers') {
+        Get-GPWmiFilter -Name 'Servers' | Remove-GPWmiFilter
+    }
+    if (Get-GPWmiFilter -Name 'Workstations') {
+        Get-GPWmiFilter -Name 'Workstations' | Remove-GPWmiFilter
+    }
+    
+    # Create WMI filters
     New-GPWmiFilter -Name 'Servers' -Expression 'Select * from WIN32_OperatingSystem where (ProductType=3 or ProductType=2)' `
         -Description "All server operating systems. Used by $companyName to deploy RMM agents."
     New-GPWmiFilter -Name 'Workstations' -Expression 'Select * from WIN32_OperatingSystem where ProductType=1' `
@@ -88,18 +99,24 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
 }
 
 # ------------------------------------------------------ Create script that GPO will run ------------------------------------------------
-# TODO: Dynamically install delegated agent for specific org
-# Check if agent installer exists in NETLOGON (KcsSetup.exe)
-if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)){
-    # Download agent installer
-    # Move it to NETLOGON
-} 
 # TODO: If installer is more than 1 month old, delete it and download new one
+# Check if agent installer exists in NETLOGON (KcsSetup.exe)
+if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)) {
+    # Download agent installer
+    $url = $vsaURL + "/install/VSA-default--1/" + $agentEXE
+    $output = "C:\$agentEXE"
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile($url, $output) 
+
+    # Move it to NETLOGON
+    Move-Item -Path C:\$agentEXE -Destination \\$gpoDomain\NETLOGON\$agentEXE -Force
+} 
+
 
 
 # https://blog.jourdant.me/post/3-ways-to-download-files-with-powershell
 # Download appropriate agent installer for the org (datablue.root)
-# https://vsa.data-blue.com:443/deploy/#/<org>.root
+
 
 
 
