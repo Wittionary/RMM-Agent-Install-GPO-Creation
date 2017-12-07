@@ -82,19 +82,20 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
     # Create-WMIFilters 
 
     New-GPWmiFilter -Name 'Servers' -Expression 'Select * from WIN32_OperatingSystem where (ProductType=3 or ProductType=2)' `
-        -Description 'All server operating systems. Used by '+$companyName+' to deploy RMM agents.' 
+        -Description "All server operating systems. Used by $companyName to deploy RMM agents."
     New-GPWmiFilter -Name 'Workstations' -Expression 'Select * from WIN32_OperatingSystem where ProductType=1' `
-        -Description 'All non-server operating systems. Used by '+$companyName+' to deploy RMM agents.' 
+        -Description "All non-server operating systems. Used by $companyName to deploy RMM agents." 
 }
 
 # ------------------------------------------------------ Create script that GPO will run ------------------------------------------------
 # TODO: Dynamically install delegated agent for specific org
 # Check if agent installer exists in NETLOGON (KcsSetup.exe)
-if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE){
-    # If installer is more than 1 month old, delete it and download new one
-} else { # Agent installer doesn't exist
+if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)){
     # Download agent installer
-}
+    # Move it to NETLOGON
+} 
+# TODO: If installer is more than 1 month old, delete it and download new one
+
 
 # https://blog.jourdant.me/post/3-ways-to-download-files-with-powershell
 # Download appropriate agent installer for the org (datablue.root)
@@ -105,8 +106,8 @@ if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE){
 # Check if agent installer exists in NETLOGON (KcsSetup.exe) and there's no install script already
 if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE -and !(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
     # Creates an agent install powershell script in C:\ in case of permission issues and then move it to NETLOGON
-    New-Item C:\$agentInstallScript  -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE+$agentSwitches"
-    Move-Item -Path C:\$agentInstallScript -Destination \\$gpoDomain\NETLOGON\$agentInstallScript
+    New-Item C:\$agentInstallScript  -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE$agentSwitches" -force
+    Move-Item -Path C:\$agentInstallScript -Destination \\$gpoDomain\NETLOGON\$agentInstallScript -Force
     
     # New-Item \\$gpoDomain\NETLOGON\$agentInstallScript -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE"
 }
@@ -120,11 +121,14 @@ else {
 # This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
 if (Get-GPO -name $gpoName) { # Check if a RMM Agent Install GPO already exists
     Remove-GPO -name $gpoName -Domain $gpoDomain -Server $gpoServer # Delete it if yes
+    & repadmin /syncall #Sync the GPO change across all DCs
+    # TODO: Add wait
 }
 
 New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
 & repadmin /syncall #Sync the new GPO across all DCs
-$gpo = Get-GPO -Name $gpoName 
+$gpo = Get-GPO -Name $gpoName
+$gpo.GpoStatus = "AllSettingsDisabled" # Disable it while changes are being made to it 
 
 # TODO: Allow for more than two DC objects (Ex: DC=blog,DC=contoso,DC=com)
 $objDC = "DC="
@@ -150,6 +154,24 @@ $fileSysPath += $gpoID
 $fileSysPath += "\Machine"
 
 New-GPLink -guid $gpo.ID -Target $objDC
+
+# Assign the WMI filter to the GPO according to the designated switch
+if ($servers) {
+    $filter = Get-GPWmiFilter "Servers"
+    $gpo.WmiFilter = $filter
+}
+elseif ($workstations) {
+    $filter = Get-GPWmiFilter "Workstations"
+    $gpo.WmiFilter = $filter
+}
+elseif ($both) {
+    # All computers in AD should fall under either the definition of Server or Workstation.
+    # Therefore, assigning no WMI filter should be safe here.  
+}
+else {
+    # In the event a scope paramenter is not set, ensure GPO is disabled so it isn't applied to everything
+    $gpo.GpoStatus = "AllSettingsDisabled"
+}
 
 $regkeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
 # $regkeyPath9 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9"
@@ -207,9 +229,10 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
 
 
 
-
-
-
+# Enable GPO
+$gpo.GpoStatus = "AllSettingsEnabled"
+# Sync the GPO settings across all DCs
+& repadmin /syncall 
 # ------------------------------------------------------ End of Script ------------------------------------------------
 # Reverting execution policy to whatever it was
 Set-ExecutionPolicy $execPolicy -Force
@@ -736,5 +759,5 @@ function Get-Author {
 }
 
 
-Export-ModuleMember -Function New-GPWmiFilter, Get-GPWmiFilter, Remove-GPWmiFilter, Set-GPWmiFilter, Rename-GPWmiFilter 
+# Export-ModuleMember -Function New-GPWmiFilter, Get-GPWmiFilter, Remove-GPWmiFilter, Set-GPWmiFilter, Rename-GPWmiFilter 
 # --------------------------------------------------- End of GPWmiFilter.psm1 ------------------------------------------------
