@@ -1,16 +1,22 @@
 ﻿Param(
-    #[Parameter(Mandatory=$True,Position=1)]
-    [string]$organizationID, # The organization's ID that you've defined in Kaseya (System > Orgs/Groups/Depts/Staff > Manage)
+    # The organization's ID that you've defined in Kaseya (System > Orgs/Groups/Depts/Staff > Manage)
+    [Parameter(Mandatory=$True,Position=0)]
+    [string]$organizationID, 
 
-    [switch]$servers, # Pick only ONE of these switches.
+    # Pick only ONE of these switches. It *should* error if you pick more than one.
+    # If none of these are used, the GPO will be made and set to Disabled.
+    [Parameter(Position = 1)]
+    [switch]$servers, 
+    [Parameter(Position = 1)]
     [switch]$workstations,
+    [Parameter(Position = 1)]
     [switch]$both 
 )
-# TODO: Exit script if more than one switch is selected
+# TODO: Test that script exits if more than one switch is selected
 
 <# --------------------------------------------------------------------------------------------------------------
 'Kaseya Agent Deployment GPO' creation
-Version: 0.0.1
+Version: 1.0
 Made by: Witt Allen
 Objective: Create a GPO that installs a Kaseya agent based on filters on a WMI query (servers, workstations, both)
 
@@ -56,12 +62,6 @@ $scriptFilePath += $agentInstallScript
 # TODO: Add this execution policy check on the Kaseya side so this script will run
 # Check execution policy, set to RemoteSigned, and revert to prior setting at end of script
 Set-ExecutionPolicy RemoteSigned -Force
-
-
-# Get parameter passed to script to know what to create WMI filter against (srv, wks, both)
-# https://stackoverflow.com/questions/5592531/how-to-pass-an-argument-to-a-powershell-script
-# https://technet.microsoft.com/en-us/library/jj554301.aspx
-
  
 
 # ---------------------------------------------------- WMI Filters ------------------------------------------------------
@@ -103,6 +103,9 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
 # Check if agent installer exists in NETLOGON (KcsSetup.exe)
 if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)) {
     # Download agent installer
+    # https://blog.jourdant.me/post/3-ways-to-download-files-with-powershell
+    # Going with method 2 since .NET is required, IE isn't guaranteed on Core servers that are DCs for method 1,
+    # and download blocks the thread until it completes or fails
     $url = $vsaURL + "/install/VSA-default--1/" + $agentEXE
     $output = "C:\$agentEXE"
     $wc = New-Object System.Net.WebClient
@@ -113,24 +116,12 @@ if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)) {
 } 
 
 
-
-# https://blog.jourdant.me/post/3-ways-to-download-files-with-powershell
-# Download appropriate agent installer for the org (datablue.root)
-
-
-
-
-# Check if agent installer exists in NETLOGON (KcsSetup.exe) and there's no install script already
-if (Test-Path \\$gpoDomain\NETLOGON\$agentEXE -and !(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
-    # Creates an agent install powershell script in C:\ in case of permission issues and then move it to NETLOGON
+# Check if there's an install script already
+if (!(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
+    # Creates an agent install powershell script in C:\ in case of permission issues and then moves it to NETLOGON
     New-Item C:\$agentInstallScript  -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE$agentSwitches" -force
     Move-Item -Path C:\$agentInstallScript -Destination \\$gpoDomain\NETLOGON\$agentInstallScript -Force
     
-    # New-Item \\$gpoDomain\NETLOGON\$agentInstallScript -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE"
-}
-else {
-    # Throw error
-    # Write to event log
 }
 
 # ------------------------------------------------------ Create GPO ------------------------------------------------
@@ -183,13 +174,14 @@ elseif ($workstations) {
 }
 elseif ($both) {
     # All computers in AD should fall under either the definition of Server or Workstation.
-    # Therefore, assigning no WMI filter should be safe here.  
+    # Therefore, assigning no WMI filter *should* be safe here.  
 }
 else {
     # In the event a scope paramenter is not set, ensure GPO is disabled so it isn't applied to everything
     $gpo.GpoStatus = "AllSettingsDisabled"
 }
 
+<#
 $regkeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
 # $regkeyPath9 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9"
 # $regkeyPath99 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9"
@@ -243,9 +235,6 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
     -Value 0 -Additive
     
 
-
-
-
 # Enable GPO
 $gpo.GpoStatus = "AllSettingsEnabled"
 # Sync the GPO settings across all DCs
@@ -256,6 +245,7 @@ Set-ExecutionPolicy $execPolicy -Force
 
 # ------------------------------------------------------------ Functions -------------------------------------------------------
 
+<#
 # --------------------------------------------------- Start of WMI Filter Function ---------------------------------------------
 # Based on function from https://gallery.technet.microsoft.com/scriptcenter/f1491111-9f5d-4c83-b436-537eca9e8d94
 Function Create-WMIFilters { 
@@ -302,6 +292,7 @@ Function Create-WMIFilters {
  
 }
 # --------------------------------------------------- End of WMI Filter Function ---------------------------------------------
+#>
 
 # --------------------------------------------------- Start of GPWmiFilter.psm1 ------------------------------------------------
 # Source: https://gallery.technet.microsoft.com/scriptcenter/Group-Policy-WMI-filter-38a188f3#content
