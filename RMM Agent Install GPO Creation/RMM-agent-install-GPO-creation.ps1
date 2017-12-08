@@ -569,7 +569,7 @@ import-module GroupPolicy
 # import-module SDM-GPMC    #To reduce dependancy on a third party, try to not use this module if possible 
 
 
-$agentInstallScript = "RMM Agent Install.ps1"
+$agentInstallScript = "RMM-Agent-Install.bat"
 $vsaURL = "https://vsa.data-blue.com"
 $agentEXE = "KcsSetup.exe"
 $agentSwitches = " /e /g=root." + $organizationID + " /c /j /s" # Switches: http://help.kaseya.com/WebHelp/EN/VSA/9040000/#493.htm
@@ -645,8 +645,9 @@ if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)) {
 
 # Check if there's an install script already
 if (!(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
-    # Creates an agent install powershell script in C:\ in case of permission issues and then moves it to NETLOGON
-    New-Item C:\$agentInstallScript  -ItemType file -Value "& \\$gpoDomain\NETLOGON\$agentEXE$agentSwitches" -force
+    # Creates an agent install batch script in C:\ in case of permission issues and then moves it to NETLOGON
+    New-Item C:\$agentInstallScript  -ItemType file -Value "\\$gpoDomain\NETLOGON\$agentEXE$agentSwitches" -force
+    Get-Item C:\$agentInstallScript | Unblock-File
     Move-Item -Path C:\$agentInstallScript -Destination \\$gpoDomain\NETLOGON\$agentInstallScript -Force
     
 }
