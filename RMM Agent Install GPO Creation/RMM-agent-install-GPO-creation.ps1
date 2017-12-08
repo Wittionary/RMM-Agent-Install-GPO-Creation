@@ -22,7 +22,7 @@ Objective: Create a GPO that installs a Kaseya agent based on filters on a WMI q
 
 DEPENDANCIES & ASSUMPTIONS:
 - Script will be ran as Administrator
-- Script will be ran on a Domain Controller
+- Script will be ran on a Domain Controller that already has an agent installed ###############################################
 - Server's OS can use WMI filtering
 - Imported modules are supported on Server's OS
 - Server has .NET installed
@@ -566,8 +566,10 @@ GENERAL TODO:
     # --------------------------------------------------- End of GPWmiFilter.psm1 ------------------------------------------------
 
 import-module GroupPolicy
-# import-module SDM-GPMC    #To reduce dependancy on a third party, try to not use this module if possible 
 
+$time = Get-Date
+$time = $time.ToShortTimeString()
+Write-Debug "Assigning variables - $time"
 
 $agentInstallScript = "RMM-Agent-Install.bat"
 $vsaURL = "https://vsa.data-blue.com"
@@ -604,13 +606,18 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
     if ($Key.GetValue("Allow System Only Change", $null) -eq $null) { 
         new-itemproperty $regkeyPath -name "Allow System Only Change" -value 1 -propertyType dword
 
-    #If regkey that let's us create WMI filters exists with a non-one value, set value to 1
-    } elseIf ($Key.GetValue("Allow System Only Change", $null) -ne 1) { 
+        #If regkey that let's us create WMI filters exists with a non-one value, set value to 1
+    }
+    elseIf ($Key.GetValue("Allow System Only Change", $null) -ne 1) { 
         set-itemproperty -Path $regkeyPath -Name "Allow System Only Change" -value 1
 
     }
 
     # Delete either of them if they exist
+    $time = Get-Date
+    $time = $time.ToShortTimeString()
+    Write-Debug "Deleting old WMI filters - $time"
+  
     if (Get-GPWmiFilter -Name 'Servers') {
         Get-GPWmiFilter -Name 'Servers' | Remove-GPWmiFilter
     }
@@ -619,6 +626,10 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
     }
     
     # Create WMI filters
+    $time = Get-Date
+    $time = $time.ToShortTimeString()
+    Write-Debug "Creating WMI filters - $time"
+
     New-GPWmiFilter -Name 'Servers' -Expression 'Select * from WIN32_OperatingSystem where (ProductType=3 or ProductType=2)' `
         -Description "All server operating systems. Used by $companyName to deploy RMM agents."
     New-GPWmiFilter -Name 'Workstations' -Expression 'Select * from WIN32_OperatingSystem where ProductType=1' `
@@ -638,6 +649,10 @@ if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)) {
     $wc = New-Object System.Net.WebClient
     $wc.DownloadFile($url, $output) 
 
+    $time = Get-Date
+    $time = $time.ToShortTimeString()
+    Write-Debug "Downloaded $agentEXE - $time"
+
     # Move it to NETLOGON
     Move-Item -Path C:\$agentEXE -Destination \\$gpoDomain\NETLOGON\$agentEXE -Force
 } 
@@ -646,6 +661,10 @@ if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)) {
 # Check if there's an install script already
 if (!(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
     # Creates an agent install batch script in C:\ in case of permission issues and then moves it to NETLOGON
+    $time = Get-Date
+    $time = $time.ToShortTimeString()
+    Write-Debug "Creating agent install batch script - $time"
+
     New-Item C:\$agentInstallScript  -ItemType file -Value "\\$gpoDomain\NETLOGON\$agentEXE$agentSwitches" -force
     Get-Item C:\$agentInstallScript | Unblock-File
     Move-Item -Path C:\$agentInstallScript -Destination \\$gpoDomain\NETLOGON\$agentInstallScript -Force
@@ -655,11 +674,28 @@ if (!(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
 # ------------------------------------------------------ Create GPO ------------------------------------------------
 
 # This will allow us to deploy updated versions of this GPO from Kaseya without having to edit each one manually
-if (Get-GPO -name $gpoName) { # Check if a RMM Agent Install GPO already exists
+if (Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
+    # Check if a RMM Agent Install GPO already exists
     Remove-GPO -name $gpoName -Domain $gpoDomain -Server $gpoServer # Delete it if yes
+    $time = Get-Date
+    $time = $time.ToShortTimeString()
+    Write-Debug "Deleted $gpoName - $time"
     & repadmin /syncall #Sync the GPO change across all DCs
-    # TODO: Add wait
+
+    while (Get-Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
+        $time = Get-Date
+        $time = $time.ToShortTimeString()
+        Write-Debug "Waiting for GPO to delete - $time"
+
+        Start-Sleep -Seconds 300 # 5 minutes
+    }
+
+    Start-Sleep -s 1
 }
+
+$time = Get-Date
+$time = $time.ToShortTimeString()
+Write-Debug "Making $gpoName at $time"
 
 New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
 & repadmin /syncall #Sync the new GPO across all DCs
@@ -689,6 +725,9 @@ $fileSysPath += "\Policies\"
 $fileSysPath += $gpoID
 $fileSysPath += "\Machine"
 
+$time = Get-Date
+$time = $time.ToShortTimeString()
+Write-Debug "Setting GP link to GPO - $time"
 New-GPLink -guid $gpo.ID -Target $objDC
 
 # Assign the WMI filter to the GPO according to the designated switch
@@ -765,6 +804,14 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
     -ValueName "ExecTime" -Type qword `
     -Value 0 -Additive
     
+Start-Sleep -s 2    
+# ---------------------- Disable UAC (Policies > Windows Settings > Security Settings > Local Policies/Security Options > UAC)
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "EnableLUA" -Type dword `
+    -Value 0 -Additive
+
+
+
 
 # Enable GPO
 $gpo.GpoStatus = "AllSettingsEnabled"
@@ -773,4 +820,9 @@ $gpo.GpoStatus = "AllSettingsEnabled"
 # ------------------------------------------------------ End of Script ------------------------------------------------
 # Reverting execution policy to whatever it was
 Set-ExecutionPolicy $execPolicy -Force
+
+$time = Get-Date
+$time = $time.ToShortTimeString()
+Write-Debug "Script completion - $time"
+Exit $LASTEXITCODE
 
