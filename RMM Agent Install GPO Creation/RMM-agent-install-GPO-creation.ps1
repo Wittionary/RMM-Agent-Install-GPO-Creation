@@ -682,7 +682,7 @@ if (Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
     Write-Debug "Deleted $gpoName - $time"
     & repadmin /syncall #Sync the GPO change across all DCs
 
-    while (Get-Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
+    while (Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
         $time = Get-Date
         $time = $time.ToShortTimeString()
         Write-Debug "Waiting for GPO to delete - $time"
