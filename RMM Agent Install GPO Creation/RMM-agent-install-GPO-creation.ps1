@@ -569,7 +569,7 @@ import-module GroupPolicy
 
 $time = Get-Date
 $time = $time.ToShortTimeString()
-Write-Debug "Assigning variables - $time"
+Write-Host "Assigning variables - $time"
 
 $agentInstallScript = "RMM-Agent-Install.bat"
 $vsaURL = "https://vsa.data-blue.com"
@@ -616,7 +616,7 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
     # Delete either of them if they exist
     $time = Get-Date
     $time = $time.ToShortTimeString()
-    Write-Debug "Deleting old WMI filters - $time"
+    Write-Host "Deleting old WMI filters - $time"
   
     if (Get-GPWmiFilter -Name 'Servers') {
         Get-GPWmiFilter -Name 'Servers' | Remove-GPWmiFilter
@@ -628,7 +628,7 @@ if (!(Get-GPWmiFilter -Name 'Servers') -or !(Get-GPWmiFilter -Name 'Workstations
     # Create WMI filters
     $time = Get-Date
     $time = $time.ToShortTimeString()
-    Write-Debug "Creating WMI filters - $time"
+    Write-Host "Creating WMI filters - $time"
 
     New-GPWmiFilter -Name 'Servers' -Expression 'Select * from WIN32_OperatingSystem where (ProductType=3 or ProductType=2)' `
         -Description "All server operating systems. Used by $companyName to deploy RMM agents."
@@ -651,7 +651,7 @@ if (!(Test-Path \\$gpoDomain\NETLOGON\$agentEXE)) {
 
     $time = Get-Date
     $time = $time.ToShortTimeString()
-    Write-Debug "Downloaded $agentEXE - $time"
+    Write-Host "Downloaded $agentEXE - $time"
 
     # Move it to NETLOGON
     Move-Item -Path C:\$agentEXE -Destination \\$gpoDomain\NETLOGON\$agentEXE -Force
@@ -663,7 +663,7 @@ if (!(Test-Path \\$gpoDomain\NETLOGON\$agentInstallScript)) {
     # Creates an agent install batch script in C:\ in case of permission issues and then moves it to NETLOGON
     $time = Get-Date
     $time = $time.ToShortTimeString()
-    Write-Debug "Creating agent install batch script - $time"
+    Write-Host "Creating agent install batch script - $time"
 
     New-Item C:\$agentInstallScript  -ItemType file -Value "\\$gpoDomain\NETLOGON\$agentEXE$agentSwitches" -force
     Get-Item C:\$agentInstallScript | Unblock-File
@@ -679,13 +679,13 @@ if (Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
     Remove-GPO -name $gpoName -Domain $gpoDomain -Server $gpoServer # Delete it if yes
     $time = Get-Date
     $time = $time.ToShortTimeString()
-    Write-Debug "Deleted $gpoName - $time"
+    Write-Host "Deleted $gpoName GPO - $time"
     & repadmin /syncall #Sync the GPO change across all DCs
 
     while (Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
         $time = Get-Date
         $time = $time.ToShortTimeString()
-        Write-Debug "Waiting for GPO to delete - $time"
+        Write-Host "Waiting for GPO to delete - $time"
 
         Start-Sleep -Seconds 300 # 5 minutes
     }
@@ -695,10 +695,19 @@ if (Get-GPO -name $gpoName -ErrorAction SilentlyContinue) {
 
 $time = Get-Date
 $time = $time.ToShortTimeString()
-Write-Debug "Making $gpoName at $time"
+Write-Host "Making $gpoName GPO - $time"
 
 New-GPO -Name $gpoName -Comment $gpoComment -Domain $gpoDomain -Server $gpoServer
 & repadmin /syncall #Sync the new GPO across all DCs
+
+while (!(Get-GPO -name $gpoName -ErrorAction SilentlyContinue)) {
+    $time = Get-Date
+    $time = $time.ToShortTimeString()
+    Write-Host "Waiting for GPO to create and AD replication - $time"
+
+    Start-Sleep -Seconds 300 # 5 minutes
+}
+
 $gpo = Get-GPO -Name $gpoName
 $gpo.GpoStatus = "AllSettingsDisabled" # Disable it while changes are being made to it 
 
@@ -727,7 +736,7 @@ $fileSysPath += "\Machine"
 
 $time = Get-Date
 $time = $time.ToShortTimeString()
-Write-Debug "Setting GP link to GPO - $time"
+Write-Host "Setting GP link to GPO - $time"
 New-GPLink -guid $gpo.ID -Target $objDC
 
 # Assign the WMI filter to the GPO according to the designated switch
@@ -823,6 +832,6 @@ Set-ExecutionPolicy $execPolicy -Force
 
 $time = Get-Date
 $time = $time.ToShortTimeString()
-Write-Debug "Script completion - $time"
+Write-Host "Script completion - $time"
 Exit $LASTEXITCODE
 
