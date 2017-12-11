@@ -786,40 +786,55 @@ new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyTy
 # TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
 # Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
 # ---------------------- STRING regkeys for 9 path
+Start-Sleep -s 2 
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
     -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -Additive
 
 # ---------------------- DWORD regkey for 9 path
+Start-Sleep -s 2 
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "PSScriptOrder" -Type dword `
     -Value 9 -Additive
 
-Start-Sleep -s 2
+
 # ---------------------- STRING regkeys for 9\9 path
+Start-Sleep -s 2 
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "Parameters", "Script" -Type string `
     -Value "0", $scriptFilePath -Additive
 
-Start-Sleep -s 2
+
 # ---------------------- DWORD regkey for 9\9 path
+Start-Sleep -s 2 
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ErrorCode" -Type dword `
     -Value 0 -Additive
 
-Start-Sleep -s 2
+
 # ---------------------- QWORD regkey for 9\9 path
+Start-Sleep -s 2 
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ExecTime" -Type qword `
     -Value 0 -Additive
     
-Start-Sleep -s 2    
+   
 # ---------------------- Disable UAC (Policies > Windows Settings > Security Settings > Local Policies/Security Options > UAC)
+Start-Sleep -s 2 
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "EnableLUA" -Type dword `
     -Value 0 -Additive
 
+# ---------------------- Add domain to trusted intranet zone
+Start-Sleep -s 2 
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\$gpoDomain" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "http" -Type dword `
+    -Value 1 -Additive
 
+Start-Sleep -s 2
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\$gpoDomain" -Domain $gpoDomain -Server $gpoServer `
+    -ValueName "https" -Type dword `
+    -Value 1 -Additive
 
 
 # Enable GPO
