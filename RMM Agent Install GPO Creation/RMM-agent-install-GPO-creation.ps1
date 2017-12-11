@@ -12,7 +12,6 @@
     [Parameter(Position = 1)]
     [switch]$both 
 )
-# TODO: Test that script exits if more than one switch is selected
 
 <# --------------------------------------------------------------------------------------------------------------
 'Kaseya Agent Deployment GPO' creation
@@ -787,34 +786,34 @@ new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyTy
 # Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
 # ---------------------- STRING regkeys for 9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
     -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -Additive
 
 # ---------------------- DWORD regkey for 9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "PSScriptOrder" -Type dword `
-    -Value 9 -Additive
+    -Value 1 -Additive
 
 
 # ---------------------- STRING regkeys for 9\9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "Parameters", "Script" -Type string `
     -Value "0", $scriptFilePath -Additive
 
 
 # ---------------------- DWORD regkey for 9\9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ErrorCode" -Type dword `
     -Value 0 -Additive
 
 
 # ---------------------- QWORD regkey for 9\9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\9" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ExecTime" -Type qword `
     -Value 0 -Additive
     
@@ -826,6 +825,7 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
     -Value 0 -Additive
 
 # ---------------------- Add domain to trusted intranet zone
+<#
 Start-Sleep -s 2 
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\$gpoDomain" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "http" -Type dword `
@@ -835,10 +835,12 @@ Start-Sleep -s 2
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\$gpoDomain" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "https" -Type dword `
     -Value 1 -Additive
+#>
 
-
-# Enable GPO
-$gpo.GpoStatus = "AllSettingsEnabled"
+# Enable GPO if scope was set
+if ($servers -or $workstations -or $both) {
+    $gpo.GpoStatus = "AllSettingsEnabled"
+}
 # Sync the GPO settings across all DCs
 & repadmin /syncall 
 # ------------------------------------------------------ End of Script ------------------------------------------------
