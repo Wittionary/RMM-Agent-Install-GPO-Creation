@@ -786,34 +786,34 @@ new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyTy
 # Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
 # ---------------------- STRING regkeys for 9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
     -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -Additive
 
 # ---------------------- DWORD regkey for 9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "PSScriptOrder" -Type dword `
     -Value 1 -Additive
 
 
-# ---------------------- STRING regkeys for 9\9 path
+# ---------------------- STRING regkeys for 9\0 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "Parameters", "Script" -Type string `
     -Value "0", $scriptFilePath -Additive
 
 
-# ---------------------- DWORD regkey for 9\9 path
+# ---------------------- DWORD regkey for 9\0 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ErrorCode" -Type dword `
     -Value 0 -Additive
 
 
-# ---------------------- QWORD regkey for 9\9 path
+# ---------------------- QWORD regkey for 9\0 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\0\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ExecTime" -Type qword `
     -Value 0 -Additive
     
