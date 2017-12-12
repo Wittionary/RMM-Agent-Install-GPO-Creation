@@ -27,6 +27,7 @@ DEPENDANCIES & ASSUMPTIONS:
 - Server has .NET installed
 - Assumes there are only two DC objects (ex. DC=CONTOSO,DC=COM). See Set-GPRegistryValue section
 - At least one domain controller in the domain is running Microsoft Windows Server 2003 or later
+- ExecutionPolicy is Unrestricted
 
 NOTES:
 - WMI Filters are not evaluated on Microsoft Windows® 2000. The filter is ignored.
@@ -580,17 +581,12 @@ $gpoDomain = (Get-WmiObject win32_computersystem).Domain
 $gpoServer = (Get-WmiObject win32_computersystem).DNSHostName+"."+(Get-WmiObject win32_computersystem).Domain #FQDN
 $companyName = "Data Blue"
 $regkeyPath = "HKLM:\System\CurrentControlSet\Services\NTDS\Parameters"
-$execPolicy = Get-ExecutionPolicy
 $DC = $gpoDomain -split "\." # Subdivide domain into DC objects
 $scriptFilePath = "\\"
 $scriptFilePath += $gpoDomain
 $scriptFilePath += "\NETLOGON\"
 $scriptFilePath += $agentInstallScript
 
-# TODO: Add this execution policy check on the Kaseya side so this script will run
-# Check execution policy, set to RemoteSigned, and revert to prior setting at end of script
-Set-ExecutionPolicy RemoteSigned -Force
- 
 
 # ---------------------------------------------------- WMI Filters ------------------------------------------------------
 # TODO: Low-priority - This would fail in the single case where there already exists two WMI filters with
@@ -710,11 +706,31 @@ while (!(Get-GPO -name $gpoName -ErrorAction SilentlyContinue)) {
 $gpo = Get-GPO -Name $gpoName
 $gpo.GpoStatus = "AllSettingsDisabled" # Disable it while changes are being made to it 
 
-# TODO: Allow for more than two DC objects (Ex: DC=blog,DC=contoso,DC=com)
-$objDC = "DC="
-$objDC += $DC[0]
-$objDC += ",DC="
-$objDC += $DC[1]
+# This is a REALLY UGLY way to account for more than two DC objects (Ex: DC=blog,DC=contoso,DC=com)
+# Hashtag timecrunch
+if ($DC.Count -eq 2) {
+    $objDC = "DC="
+    $objDC += $DC[0]
+    $objDC += ",DC="
+    $objDC += $DC[1]
+} elseif ($DC.Count -eq 3) {
+    $objDC = "DC="
+    $objDC += $DC[0]
+    $objDC += ",DC="
+    $objDC += $DC[1]
+    $objDC += ",DC="
+    $objDC += $DC[2]
+} elseif ($DC.Count -eq 4) {
+    $objDC = "DC="
+    $objDC += $DC[0]
+    $objDC += ",DC="
+    $objDC += $DC[1]
+    $objDC += ",DC="
+    $objDC += $DC[2]
+    $objDC += ",DC="
+    $objDC += $DC[3]
+}
+
 
 $gpoID = "{"
 $gpoID += $gpo.id
@@ -782,38 +798,45 @@ New-ItemProperty $regkeyPath99 -Name "IsPowershell" -Value 1 -PropertyType DWORD
 new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyType string
 #>
 
-# TODO: Check for other scripts with same priority. Currently it will be creating a low-priority Startup script
+# This checks for scripts that are already setup **on the DC this script is being run on**
+# This does not take into account many things
+$regkeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
+$scriptPriority = 0
+while (!(test-path "$regkeyPath$scriptPriority")) {
+    $scriptPriority++
+}
+
 # Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
 # ---------------------- STRING regkeys for 9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
     -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -Additive
 
 # ---------------------- DWORD regkey for 9 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "PSScriptOrder" -Type dword `
     -Value 1 -Additive
 
 
 # ---------------------- STRING regkeys for 9\0 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "Parameters", "Script" -Type string `
     -Value "0", $scriptFilePath -Additive
 
 
 # ---------------------- DWORD regkey for 9\0 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ErrorCode" -Type dword `
     -Value 0 -Additive
 
 
 # ---------------------- QWORD regkey for 9\0 path
 Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\9\0" -Domain $gpoDomain -Server $gpoServer `
+Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ExecTime" -Type qword `
     -Value 0 -Additive
     
@@ -824,18 +847,6 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
     -ValueName "EnableLUA" -Type dword `
     -Value 0 -Additive
 
-# ---------------------- Add domain to trusted intranet zone
-<#
-Start-Sleep -s 2 
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\$gpoDomain" -Domain $gpoDomain -Server $gpoServer `
-    -ValueName "http" -Type dword `
-    -Value 1 -Additive
-
-Start-Sleep -s 2
-Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\ZoneMap\Domains\$gpoDomain" -Domain $gpoDomain -Server $gpoServer `
-    -ValueName "https" -Type dword `
-    -Value 1 -Additive
-#>
 
 # Enable GPO if scope was set
 if ($servers -or $workstations -or $both) {
@@ -844,9 +855,6 @@ if ($servers -or $workstations -or $both) {
 # Sync the GPO settings across all DCs
 & repadmin /syncall 
 # ------------------------------------------------------ End of Script ------------------------------------------------
-# Reverting execution policy to whatever it was
-Set-ExecutionPolicy $execPolicy -Force
-
 $time = Get-Date
 $time = $time.ToShortTimeString()
 Write-Host "Script completion - $time"
