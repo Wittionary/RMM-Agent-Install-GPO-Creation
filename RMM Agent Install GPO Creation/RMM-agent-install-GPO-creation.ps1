@@ -713,14 +713,16 @@ if ($DC.Count -eq 2) {
     $objDC += $DC[0]
     $objDC += ",DC="
     $objDC += $DC[1]
-} elseif ($DC.Count -eq 3) {
+}
+elseif ($DC.Count -eq 3) {
     $objDC = "DC="
     $objDC += $DC[0]
     $objDC += ",DC="
     $objDC += $DC[1]
     $objDC += ",DC="
     $objDC += $DC[2]
-} elseif ($DC.Count -eq 4) {
+}
+elseif ($DC.Count -eq 4) {
     $objDC = "DC="
     $objDC += $DC[0]
     $objDC += ",DC="
@@ -730,6 +732,9 @@ if ($DC.Count -eq 2) {
     $objDC += ",DC="
     $objDC += $DC[3]
 }
+$time = Get-Date
+$time = $time.ToShortTimeString()
+Write-Host "`$objDC is $objDC - $time"
 
 
 $gpoID = "{"
@@ -805,16 +810,19 @@ $scriptPriority = 0
 while (!(test-path "$regkeyPath$scriptPriority")) {
     $scriptPriority++
 }
+Write-Host "`$scriptPriority is $scriptPriority"
 
 # Cmdlet documentation: https://technet.microsoft.com/en-us/library/hh967458(v=wps.630).aspx
 # ---------------------- STRING regkeys for 9 path
 Start-Sleep -s 2 
+Write-Host "Line 818"
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "DisplayName", "FileSysPath", "GPO-ID", "GPOName", "SOM-ID" -Type string `
     -Value $gpoName, $fileSysPath, $regGpoId, $gpoID, $objDC -Additive
 
 # ---------------------- DWORD regkey for 9 path
 Start-Sleep -s 2 
+Write-Host "Line 825"
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "PSScriptOrder" -Type dword `
     -Value 1 -Additive
@@ -822,6 +830,7 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
 
 # ---------------------- STRING regkeys for 9\0 path
 Start-Sleep -s 2 
+Write-Host "Line 833"
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "Parameters", "Script" -Type string `
     -Value "0", $scriptFilePath -Additive
@@ -829,6 +838,7 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
 
 # ---------------------- DWORD regkey for 9\0 path
 Start-Sleep -s 2 
+Write-Host "Line 841"
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ErrorCode" -Type dword `
     -Value 0 -Additive
@@ -836,6 +846,7 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
 
 # ---------------------- QWORD regkey for 9\0 path
 Start-Sleep -s 2 
+Write-Host "Line 849"
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\$scriptPriority\0" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "ExecTime" -Type qword `
     -Value 0 -Additive
@@ -843,6 +854,7 @@ Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentV
    
 # ---------------------- Disable UAC (Policies > Windows Settings > Security Settings > Local Policies/Security Options > UAC)
 Start-Sleep -s 2 
+Write-Host "Line 857"
 Set-GPRegistryValue -guid $gpo.ID -Key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Domain $gpoDomain -Server $gpoServer `
     -ValueName "EnableLUA" -Type dword `
     -Value 0 -Additive
