@@ -567,9 +567,7 @@ GENERAL TODO:
 
 import-module GroupPolicy
 
-$time = Get-Date
-$time = $time.ToShortTimeString()
-Write-Host "Assigning variables - $time"
+Write-Host "Assigning variables - " (Get-Date).ToShortTimeString()
 
 $agentInstallScript = "RMM-Agent-Install.bat"
 $vsaURL = "https://vsa.data-blue.com"
@@ -807,7 +805,7 @@ new-itemproperty $regkeyPath99 -name "Script" -value $scriptFilePath -propertyTy
 # This does not take into account many things
 $regkeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Startup\"
 $scriptPriority = 0
-while (!(test-path "$regkeyPath$scriptPriority")) {
+while (test-path "$regkeyPath$scriptPriority") {
     $scriptPriority++
 }
 Write-Host "`$scriptPriority is $scriptPriority"
